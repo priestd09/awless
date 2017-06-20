@@ -17,12 +17,17 @@ limitations under the License.
 package aws
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"net/http"
+	"os"
+	"path/filepath"
 	"time"
 
 	awssdk "github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/wallix/awless/aws/config"
@@ -110,6 +115,9 @@ func initAWSSession(region, profile string) (*session.Session, error) {
 		AssumeRoleTokenProvider: stscreds.StdinTokenProvider,
 		Profile:                 profile,
 	})
+	session.Config.Credentials = credentials.NewCredentials(&FileCacheProvider{
+		Creds: session.Config.Credentials,
+	})
 	//session.Config = session.Config.WithLogLevel(awssdk.LogDebugWithHTTPBody)
 	if err != nil {
 		return nil, err
@@ -121,4 +129,52 @@ func initAWSSession(region, profile string) (*session.Session, error) {
 	session.Config.HTTPClient = http.DefaultClient
 
 	return session, nil
+}
+
+type cachedCredential struct {
+}
+
+type FileCacheProvider struct {
+	Creds *credentials.Credentials
+}
+
+func (f *FileCacheProvider) Retrieve() (credentials.Value, error) {
+	awlessCache := os.Getenv("__AWLESS_CACHE")
+	if awlessCache == "" {
+		return f.Creds.Get()
+	}
+	credFolder := filepath.Join(awlessCache, "credentials")
+	if _, err := os.Stat(credFolder); os.IsNotExist(err) {
+		os.MkdirAll(credFolder, 0700)
+	}
+	credFile := "aws.tmp"
+	credPath := filepath.Join(credFolder, credFile)
+
+	if _, readerr := os.Stat(credPath); readerr == nil {
+		var credValue credentials.Value
+		content, err := ioutil.ReadFile(credPath)
+		if err != nil {
+			return credValue, err
+		}
+		err = json.Unmarshal(content, &credValue)
+		fmt.Println("credentials retrieved from file")
+		//TODO: check if credentials are expired
+
+		return credValue, err
+	}
+	fmt.Println("get credentials")
+	credValue, err := f.Creds.Get()
+	if err != nil {
+		return credValue, err
+	}
+	content, err := json.Marshal(credValue)
+	if err != nil {
+		return credValue, err
+	}
+
+	return credValue, ioutil.WriteFile(credPath, content, 0600)
+}
+func (f *FileCacheProvider) IsExpired() bool {
+	// TODO check file cache is expired? Fall back to underlying credentials
+	return f.Creds.IsExpired()
 }

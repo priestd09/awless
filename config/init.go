@@ -38,6 +38,7 @@ var (
 
 func init() {
 	os.Setenv("__AWLESS_HOME", AwlessHome)
+	os.Setenv("__AWLESS_CACHE", filepath.Join(AwlessHome, "cache"))
 	os.Setenv("__AWLESS_KEYS_DIR", KeysDir)
 }
 

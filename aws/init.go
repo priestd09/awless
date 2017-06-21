@@ -17,16 +17,14 @@ limitations under the License.
 package aws
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net/http"
-	"os"
-	"path/filepath"
+	"strings"
 	"time"
 
 	awssdk "github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -47,7 +45,7 @@ func InitServices(conf map[string]interface{}, log *logger.Logger) error {
 		return errors.New("empty AWS region. Set it with `awless config set aws.region`")
 	}
 
-	sess, err := initAWSSession(region, awsconf.profile())
+	sess, err := initAWSSession(region, awsconf.profile(), log)
 	if err != nil {
 		return err
 	}
@@ -80,14 +78,14 @@ func NewDriver(region, profile string, log ...*logger.Logger) (driver.Driver, er
 		return nil, fmt.Errorf("invalid region '%s' provided", region)
 	}
 
-	sess, err := initAWSSession(region, profile)
-	if err != nil {
-		return nil, err
-	}
-
 	drivLog := logger.DiscardLogger
 	if len(log) > 0 {
 		drivLog = log[0]
+	}
+
+	sess, err := initAWSSession(region, profile, drivLog)
+	if err != nil {
+		return nil, err
 	}
 
 	awsconf := config(
@@ -108,73 +106,45 @@ func NewDriver(region, profile string, log ...*logger.Logger) (driver.Driver, er
 	return driver.NewMultiDriver(drivers...), nil
 }
 
-func initAWSSession(region, profile string) (*session.Session, error) {
+func initAWSSession(region, profile string, log *logger.Logger) (*session.Session, error) {
 	session, err := session.NewSessionWithOptions(session.Options{
-		Config:                  awssdk.Config{Region: awssdk.String(region), HTTPClient: &http.Client{Timeout: 2 * time.Second}},
+		Config: awssdk.Config{
+			Region:                        awssdk.String(region),
+			HTTPClient:                    &http.Client{Timeout: 2 * time.Second},
+			CredentialsChainVerboseErrors: awssdk.Bool(true),
+		},
 		SharedConfigState:       session.SharedConfigEnable,
 		AssumeRoleTokenProvider: stscreds.StdinTokenProvider,
 		Profile:                 profile,
 	})
-	session.Config.Credentials = credentials.NewCredentials(&FileCacheProvider{
-		Creds: session.Config.Credentials,
-	})
-	//session.Config = session.Config.WithLogLevel(awssdk.LogDebugWithHTTPBody)
 	if err != nil {
 		return nil, err
 	}
+	session.Config.Credentials = credentials.NewCredentials(&fileCacheProvider{
+		creds:   session.Config.Credentials,
+		profile: profile,
+		log:     log,
+	})
+	//session.Config = session.Config.WithLogLevel(awssdk.LogDebugWithHTTPBody)
 
 	if _, err = session.Config.Credentials.Get(); err != nil {
-		return nil, errors.New("Your AWS credentials seem undefined! AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY need to be exported in your CLI environment\nInstallation documentation is at https://github.com/wallix/awless/wiki/Installation")
+		logCredentialProvidedErrors(log, err)
+		return nil, errors.New("Unable to authenticate with neither environment variables, configuration file nor STS credentials. \nExport AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY in your CLI environment. Installation documentation is at https://github.com/wallix/awless/wiki/Installation")
 	}
 	session.Config.HTTPClient = http.DefaultClient
 
 	return session, nil
 }
 
-type cachedCredential struct {
-}
-
-type FileCacheProvider struct {
-	Creds *credentials.Credentials
-}
-
-func (f *FileCacheProvider) Retrieve() (credentials.Value, error) {
-	awlessCache := os.Getenv("__AWLESS_CACHE")
-	if awlessCache == "" {
-		return f.Creds.Get()
-	}
-	credFolder := filepath.Join(awlessCache, "credentials")
-	if _, err := os.Stat(credFolder); os.IsNotExist(err) {
-		os.MkdirAll(credFolder, 0700)
-	}
-	credFile := "aws.tmp"
-	credPath := filepath.Join(credFolder, credFile)
-
-	if _, readerr := os.Stat(credPath); readerr == nil {
-		var credValue credentials.Value
-		content, err := ioutil.ReadFile(credPath)
-		if err != nil {
-			return credValue, err
+func logCredentialProvidedErrors(log *logger.Logger, err error) {
+	if batcherr, ok := err.(awserr.BatchedErrors); ok {
+		for _, providerErr := range batcherr.OrigErrs() {
+			if baseErr, ok := providerErr.(awserr.Error); ok {
+				log.Warningf("%s (err: %s)", baseErr.Message(), baseErr.Code())
+				if baseErr.OrigErr() != nil {
+					log.ExtraVerbosef("\t%s: %s", baseErr.Code(), strings.Replace(baseErr.OrigErr().Error(), "\n", " ", -1))
+				}
+			}
 		}
-		err = json.Unmarshal(content, &credValue)
-		fmt.Println("credentials retrieved from file")
-		//TODO: check if credentials are expired
-
-		return credValue, err
 	}
-	fmt.Println("get credentials")
-	credValue, err := f.Creds.Get()
-	if err != nil {
-		return credValue, err
-	}
-	content, err := json.Marshal(credValue)
-	if err != nil {
-		return credValue, err
-	}
-
-	return credValue, ioutil.WriteFile(credPath, content, 0600)
-}
-func (f *FileCacheProvider) IsExpired() bool {
-	// TODO check file cache is expired? Fall back to underlying credentials
-	return f.Creds.IsExpired()
 }

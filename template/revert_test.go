@@ -322,15 +322,15 @@ delete dbsubnetgroup name=my-dbsubgroup`
 		}
 	})
 
-	t.Run("Revert start containerservice", func(t *testing.T) {
-		tpl := MustParse("start containerservice name=awless-test-service cluster=awless-cluster deployment-name=awless-test")
+	t.Run("Revert start containertask type=service", func(t *testing.T) {
+		tpl := MustParse("start containertask type=service cluster=cl desired-count=2 name=taskname deployment-name=dpname")
 		reverted, err := tpl.Revert()
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		exp := `update containerservice cluster=awless-cluster deployment-name=awless-test desired-count=0
-stop containerservice cluster=awless-cluster deployment-name=awless-test`
+		exp := `update containertask cluster=cl deployment-name=dpname desired-count=0
+stop containertask cluster=cl deployment-name=dpname`
 		if got, want := reverted.String(), exp; got != want {
 			t.Fatalf("got: %s\nwant: %s\n", got, want)
 		}
@@ -353,6 +353,7 @@ stop containerservice cluster=awless-cluster deployment-name=awless-test`
 func TestCmdNodeIsRevertible(t *testing.T) {
 	tcases := []struct {
 		line, result string
+		params       map[string]interface{}
 		err          error
 		revertible   bool
 	}{
@@ -371,13 +372,17 @@ func TestCmdNodeIsRevertible(t *testing.T) {
 		{line: "detach routetable", revertible: false},
 		{line: "start alarm", revertible: true},
 		{line: "stop alarm", revertible: true},
-		{line: "start containerservice", revertible: true},
+		{line: "start containertask", params: map[string]interface{}{"type": "service"}, revertible: true},
+		{line: "start containertask", params: map[string]interface{}{"type": "task"}, revertible: false},
 	}
 
 	for _, tc := range tcases {
 		splits := strings.SplitN(tc.line, " ", 2)
 		action, entity := splits[0], splits[1]
 		cmd := &ast.CommandNode{Action: action, Entity: entity, CmdResult: tc.result, CmdErr: tc.err}
+		if tc.params != nil {
+			cmd.Params = tc.params
+		}
 		if tc.revertible != isRevertible(cmd) {
 			t.Fatalf("expected '%s' to have revertible=%t", cmd, tc.revertible)
 		}

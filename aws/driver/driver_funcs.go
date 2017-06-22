@@ -346,6 +346,97 @@ func (d *EcsDriver) Detach_Containertask(params map[string]interface{}) (interfa
 	return nil, nil
 }
 
+func (d *EcsDriver) Start_Containertask_DryRun(params map[string]interface{}) (interface{}, error) {
+	if _, ok := params["cluster"]; !ok {
+		return nil, errors.New("start containertask: missing required params 'cluster'")
+	}
+
+	if _, ok := params["desired-count"]; !ok {
+		return nil, errors.New("start containertask: missing required params 'desired-count'")
+	}
+
+	if _, ok := params["name"]; !ok {
+		return nil, errors.New("start containertask: missing required params 'name'")
+	}
+
+	types := map[string]struct{}{
+		"task":    {},
+		"service": {},
+	}
+
+	if t, ok := params["type"].(string); !ok {
+		return nil, errors.New("start containertask: missing required params 'type'")
+	} else {
+		if _, stok := types[t]; !stok {
+			return nil, fmt.Errorf("start containertask: invalid type '%s'", t)
+		}
+		if t == "service" {
+			if _, ok := params["deployment-name"]; !ok {
+				return nil, errors.New("start containertask: missing required params for type=service: 'deployment-name'")
+			}
+		}
+	}
+
+	d.logger.Verbose("params dry run: start containertask ok")
+	return fakeDryRunId("containertask"), nil
+}
+
+func (d *EcsDriver) Start_Containertask(params map[string]interface{}) (interface{}, error) {
+	typ := fmt.Sprint(params["type"])
+	switch typ {
+	case "service":
+		setters := []setter{
+			{val: params["cluster"], fieldPath: "Cluster", fieldType: awsstr},
+			{val: params["name"], fieldPath: "TaskDefinition", fieldType: awsstr},
+			{val: params["deployment-name"], fieldPath: "ServiceName", fieldType: awsstr},
+			{val: params["desired-count"], fieldPath: "DesiredCount", fieldType: awsint64},
+		}
+		if _, ok := params["role"]; ok {
+			setters = append(setters, setter{val: params["role"], fieldPath: "Role", fieldType: awsstr})
+		}
+		if _, ok := params["loadbalancer.container-name"]; ok {
+			setters = append(setters, setter{val: params["loadbalancer.container-name"], fieldPath: "LoadBalancers[0]ContainerName", fieldType: awsslicestruct})
+		}
+		if _, ok := params["loadbalancer.container-port"]; ok {
+			setters = append(setters, setter{val: params["loadbalancer.container-port"], fieldPath: "LoadBalancers[0]ContainerPort", fieldType: awsslicestructint64})
+		}
+		if _, ok := params["loadbalancer.targetgroup"]; ok {
+			setters = append(setters, setter{val: params["loadbalancer.targetgroup"], fieldPath: "LoadBalancers[0]TargetGroupArn", fieldType: awsslicestruct})
+		}
+
+		call := &driverCall{
+			d:       d,
+			desc:    "start containertask",
+			fn:      d.CreateService,
+			logger:  d.logger,
+			setters: setters,
+		}
+
+		output, err := call.execute(&ecs.CreateServiceInput{})
+		if err != nil {
+			return nil, err
+		}
+
+		return aws.StringValue(output.(*ecs.CreateServiceOutput).Service.ServiceArn), nil
+	case "task":
+		call := &driverCall{
+			d:      d,
+			desc:   "start containertask",
+			fn:     d.RunTask,
+			logger: d.logger,
+			setters: []setter{
+				{val: params["cluster"], fieldPath: "Cluster", fieldType: awsstr},
+				{val: params["name"], fieldPath: "TaskDefinition", fieldType: awsstr},
+				{val: params["desired-count"], fieldPath: "Count", fieldType: awsint64},
+			},
+		}
+
+		_, err := call.execute(&ecs.RunTaskInput{})
+		return nil, err
+	}
+	return nil, fmt.Errorf("start containertask: invalid type '%s'", typ)
+}
+
 func (d *IamDriver) Create_Policy_DryRun(params map[string]interface{}) (interface{}, error) {
 	_, effect := params["effect"]
 	_, action := params["action"]

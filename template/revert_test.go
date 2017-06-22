@@ -16,6 +16,7 @@ func TestRevertOneliner(t *testing.T) {
 		{in: "delete instanceprofile name=stuff", exp: "create instanceprofile name=stuff"},
 		{in: "create appscalingtarget dimension=dim max-capacity=10 min-capacity=4 resource=res role=role service-namespace=ecs", exp: "delete appscalingtarget dimension=dim resource=res service-namespace=ecs"},
 		{in: "create appscalingpolicy dimension=my-dim name=my-name resource=my-res service-namespace=my-ns stepscaling-adjustment-type=my-sat stepscaling-adjustments=0:0.25:-1,0.25:0.75:0,0.75::+1 type=my-type", exp: "delete appscalingpolicy dimension=my-dim name=my-name resource=my-res service-namespace=my-ns"},
+		{in: "attach containertask image=toto memory-hard-limit=64 container-name=test-container name=test-service", exp: "detach containertask container-name=test-container name=test-service"},
 	}
 
 	for _, tcase := range tcases {
@@ -323,27 +324,28 @@ delete dbsubnetgroup name=my-dbsubgroup`
 	})
 
 	t.Run("Revert start containertask type=service", func(t *testing.T) {
-		tpl := MustParse("start containertask type=service cluster=cl desired-count=2 name=taskname deployment-name=dpname")
+		tpl := MustParse("start containertask cluster=cl desired-count=2 name=taskname deployment-name=dpname type=service")
 		reverted, err := tpl.Revert()
 		if err != nil {
 			t.Fatal(err)
 		}
 
 		exp := `update containertask cluster=cl deployment-name=dpname desired-count=0
-stop containertask cluster=cl deployment-name=dpname`
+stop containertask cluster=cl deployment-name=dpname type=service`
 		if got, want := reverted.String(), exp; got != want {
 			t.Fatalf("got: %s\nwant: %s\n", got, want)
 		}
 	})
 
-	t.Run("Revert attach containertask", func(t *testing.T) {
-		tpl := MustParse("attach containertask image=toto memory-hard-limit=64 container-name=test-container name=test-service")
+	t.Run("Revert start containertask type=task", func(t *testing.T) {
+		tpl := MustParse("start containertask type=task cluster=cl desired-count=2 name=taskname")
+		tpl.CommandNodesIterator()[0].CmdResult = "my-task-arn"
 		reverted, err := tpl.Revert()
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		exp := `detach containertask container-name=test-container name=test-service`
+		exp := `stop containertask cluster=cl run-arn=my-task-arn type=task`
 		if got, want := reverted.String(), exp; got != want {
 			t.Fatalf("got: %s\nwant: %s\n", got, want)
 		}
@@ -373,7 +375,7 @@ func TestCmdNodeIsRevertible(t *testing.T) {
 		{line: "start alarm", revertible: true},
 		{line: "stop alarm", revertible: true},
 		{line: "start containertask", params: map[string]interface{}{"type": "service"}, revertible: true},
-		{line: "start containertask", params: map[string]interface{}{"type": "task"}, revertible: false},
+		{line: "start containertask", params: map[string]interface{}{"type": "task"}, revertible: true},
 	}
 
 	for _, tc := range tcases {

@@ -357,6 +357,12 @@ var manualParamsDoc = map[string]map[string]string{
 		"deployment-name": "The deployment name of the service (e.g. prod, staging...)",
 		"role":            "The name or full Amazon Resource Name (ARN) of the IAM role that allows Amazon ECS to make calls to your load balancer on your behalf",
 	},
+	"stopcontainertask": {
+		"cluster":         "The short name or full Amazon Resource Name (ARN) of the cluster on which to run your task",
+		"type":            "The type of task to launch (task/service)",
+		"deployment-name": "The deployment name of the service (e.g. prod, staging...)",
+		"run-arn":         "The ID or full Amazon Resource Name (ARN) entry of the run of the task to stop",
+	},
 	"updatebucket": {
 		"name":              "The name of the bucket to update",
 		"acl":               "The canned ACL to apply to the bucket (private | public-read | public-read-write | aws-exec-read | authenticated-read | bucket-owner-read | bucket-owner-full-control | log-delivery-write)",

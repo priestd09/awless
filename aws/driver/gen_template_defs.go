@@ -697,8 +697,8 @@ var AWSTemplatesDefinitions = map[string]template.Definition{
 		Action:         "stop",
 		Entity:         "containertask",
 		Api:            "ecs",
-		RequiredParams: []string{"cluster", "deployment-name"},
-		ExtraParams:    []string{},
+		RequiredParams: []string{"cluster", "type"},
+		ExtraParams:    []string{"deployment-name", "run-arn"},
 	},
 	"updatecontainertask": {
 		Action:         "update",

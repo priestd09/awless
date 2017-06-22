@@ -818,10 +818,14 @@ var DriversDefs = []driversDef{
 				},
 			},
 			{
-				Action: "stop", Entity: cloud.ContainerTask, ApiMethod: "DeleteService", Input: "DeleteServiceInput", Output: "DeleteServiceOutput", DryRunUnsupported: true,
+				Action: "stop", Entity: cloud.ContainerTask, ManualFuncDefinition: true,
 				RequiredParams: []param{
-					{AwsField: "Cluster", TemplateName: "cluster", AwsType: "awsstr"},
-					{AwsField: "Service", TemplateName: "deployment-name", AwsType: "awsstr"},
+					{TemplateName: "cluster"},
+					{TemplateName: "type"},
+				},
+				ExtraParams: []param{
+					{TemplateName: "deployment-name"},
+					{TemplateName: "run-arn"},
 				},
 			},
 			{

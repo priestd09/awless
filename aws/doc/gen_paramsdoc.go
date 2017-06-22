@@ -487,10 +487,7 @@ var generatedParamsDoc = map[string]map[string]string{
 	"stopalarm": {
 		"names": "The names of the alarms",
 	},
-	"stopcontainertask": {
-		"cluster":         "The name of the cluster that hosts the service to delete",
-		"deployment-name": "The name of the service to delete",
-	},
+	"stopcontainertask": {},
 	"stopinstance": {
 		"id": "One or more instance IDs",
 	},

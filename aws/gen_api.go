@@ -244,7 +244,7 @@ var APIPerResourceType = map[string]string{
 }
 
 type Infra struct {
-	once   oncer
+	cache  cacher
 	region string
 	config config
 	log    *logger.Logger
@@ -1906,7 +1906,7 @@ func (s *Infra) IsSyncDisabled() bool {
 }
 
 type Access struct {
-	once   oncer
+	cache  cacher
 	region string
 	config config
 	log    *logger.Logger
@@ -2275,7 +2275,7 @@ func (s *Access) IsSyncDisabled() bool {
 }
 
 type Storage struct {
-	once   oncer
+	cache  cacher
 	region string
 	config config
 	log    *logger.Logger
@@ -2449,7 +2449,7 @@ func (s *Storage) IsSyncDisabled() bool {
 }
 
 type Messaging struct {
-	once   oncer
+	cache  cacher
 	region string
 	config config
 	log    *logger.Logger
@@ -2718,7 +2718,7 @@ func (s *Messaging) IsSyncDisabled() bool {
 }
 
 type Dns struct {
-	once   oncer
+	cache  cacher
 	region string
 	config config
 	log    *logger.Logger
@@ -2920,7 +2920,7 @@ func (s *Dns) IsSyncDisabled() bool {
 }
 
 type Lambda struct {
-	once   oncer
+	cache  cacher
 	region string
 	config config
 	log    *logger.Logger
@@ -3086,7 +3086,7 @@ func (s *Lambda) IsSyncDisabled() bool {
 }
 
 type Monitoring struct {
-	once   oncer
+	cache  cacher
 	region string
 	config config
 	log    *logger.Logger
@@ -3316,7 +3316,7 @@ func (s *Monitoring) IsSyncDisabled() bool {
 }
 
 type Cdn struct {
-	once   oncer
+	cache  cacher
 	region string
 	config config
 	log    *logger.Logger
@@ -3482,7 +3482,7 @@ func (s *Cdn) IsSyncDisabled() bool {
 }
 
 type Cloudformation struct {
-	once   oncer
+	cache  cacher
 	region string
 	config config
 	log    *logger.Logger

@@ -134,7 +134,7 @@ var APIPerResourceType = map[string]string {
 
 {{ range $index, $service := . }}
 type {{ Title $service.Name }} struct {
-	once oncer
+	cache cacher
   region string
 	config config
 	log *logger.Logger
